@@ -83,6 +83,7 @@ jobs:
           path: ./test-coverage.html
 
   image-build-dev:
+    name: "Build and push 'dev' container images"
     strategy:
       matrix:
         os-version: ['ubuntu-latest']
@@ -106,6 +107,7 @@ jobs:
           ./push_dev.sh
 
   e2e-tests:
+    name: Run end-to-end tests
     needs: ['image-build-dev']
     strategy:
       matrix:

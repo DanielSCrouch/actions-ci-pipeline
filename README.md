@@ -6,6 +6,10 @@ GitHub Actions [Documentation](https://docs.github.com/en/actions)
 
 ![alt text](assets/ci-pipeline.png 'CI-Pipeline Workflow')
 
+---
+
+## GitHub Config & Secrets
+
 1. [Enabling Debug Logging](https://docs.github.com/en/actions/monitoring-and-troubleshooting-workflows/enabling-debug-logging)
 2. Code Owners: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 3. [Add GitHub branch protection rule](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/defining-the-mergeability-of-pull-requests/managing-a-branch-protection-rule)
