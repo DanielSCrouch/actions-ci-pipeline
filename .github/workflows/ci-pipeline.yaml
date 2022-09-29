@@ -1,0 +1,165 @@
+name: Continous Integration Pipeline
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - '**.MD'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - '**.MD'
+jobs:
+  linter-tests:
+    name: 'Run linter (prettierrc) tests'
+    strategy:
+      matrix:
+        node-version: ['18']
+        os-version: ['ubuntu-latest']
+      fail-fast: true
+      max-parallel: 3
+    runs-on: ${{ matrix.os-version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Cache Node modules
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          # Cache is unique to Go version, OS, go.sum file (hashed)
+          key: node-${{ matrix.node-version }}-${{ runner.os }}
+          # Partial key match if exists
+          restore-keys: |
+            golang-${{ matrix.go-version }}-${{ runner.os }}
+      - uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Install prettier linter
+        run: npm install --save-dev --save-exact prettier
+      - name: Run linter test (prettierrc) on GUI modules
+        run: npx prettier --check .
+
+  unit-tests:
+    name: 'Run Golang unit tests'
+    strategy:
+      matrix:
+        go-version: ['1.18.6']
+        os-version: ['ubuntu-latest']
+      fail-fast: true
+      max-parallel: 3
+    runs-on: ${{ matrix.os-version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go
+          # Cache is unique to Go version, OS, go.sum file (hashed)
+          key: golang-${{ matrix.go-version }}-${{ runner.os }}-${{ hashFiles('**/go.sum') }}
+          # Partial key match if exists
+          restore-keys: |
+            golang-${{ matrix.go-version }}-${{ runner.os }}-
+      - uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Run linter test on Go modules
+        run: test -z $(gofmt -l .)
+      - name: Install dependencies
+        run: go mod download
+      - name: Run unit tests
+        run: go test ./... -v
+      - name: Check test coverage
+        run: |
+          go test -coverprofile test-coverage.out ./...
+          go tool cover -html test-coverage.out -o test-coverage.html
+      - name: Upload test coverage
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-coverage
+          path: ./test-coverage.html
+
+  image-build-dev:
+    strategy:
+      matrix:
+        os-version: ['ubuntu-latest']
+      fail-fast: true
+      max-parallel: 3
+    runs-on: ${{ matrix.os-version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Build Images
+        run: |
+          cd ./hack
+          ./build.sh
+          ./push_dev.sh
+
+  e2e-tests:
+    needs: ['image-build-dev']
+    strategy:
+      matrix:
+        go-version: ['1.18.6']
+        os-version: ['ubuntu-latest']
+      fail-fast: true
+      max-parallel: 3
+    runs-on: ${{ matrix.os-version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Deploy Minikube cluster
+        id: minikube
+        uses: SafeIntelligence/actions-setup-minikube@master
+        with:
+          minikube version: 'v1.27.0'
+          kubernetes version: 'v1.25.0'
+          driver: 'docker'
+          container runtime: containerd
+          start args: --alsologtostderr
+      - name: Check for Kubernetes node avaliability
+        run: kubectl get nodes | grep control-plane | awk '{print$2}' | grep Ready
+      - name: Write Kubernetes Secret manifest to disk
+        run: 'echo "$K8_SECRET_DOCKERHUB" > secret.yaml'
+        shell: bash
+        env:
+          K8_SECRET_DOCKERHUB: ${{ secrets.K8_SECRET_DOCKERHUB }}
+      - name: Apply Kubernetes Secret manifest
+        run: kubectl apply -f secret.yaml
+      - name: Apply Kubernetes deployment
+        run: kubectl apply -f ./manifests/app_deployment.yaml
+      - name: Print Kubernetes pods
+        run: kubectl get pods -A
+      - name: Wait for App avaliability
+        run: kubectl wait --for=condition=ready pod -l app=app --timeout=60s -n actions
+      - name: Run e2e tests
+        run: kubectl apply -f ./manifests/test_job.yaml
+      - name: Wait for e2e results
+        run: kubectl wait --for=condition=complete job/testapp --timeout=60s -n default
+        # Add results to artifacts
+
+  # issue:
+  #   needs: ['linter-tests', 'unit-tests']
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v3
+  #     - name: Create GitHub issue
+  #       id: issue
+  #       uses: ./.github/actions/create-issue
+  #       with:
+  #         token: ${{ secrets.GITHUB_TOKEN }}
+  #         title: Title
+  #         body: Body
+  #         assignees: |
+  #           danielscrouch
+  #     - run: echo 'Issue ${{ steps.issue.outputs.issue }}'

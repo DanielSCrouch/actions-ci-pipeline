@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: testapp
+spec:
+  template:
+    spec:
+      containers:
+        - name: testapp
+          image: docker.io/duartcs/testapp:dev
+          imagePullPolicy: Always
+          env:
+            - name: HOST_ADDR
+              value: 'app-svc.actions'
+            - name: HOST_PORT
+              value: '30000'
+
+      restartPolicy: OnFailure
+  backoffLimit: 4

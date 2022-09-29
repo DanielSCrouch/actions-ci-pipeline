@@ -1,0 +1,24 @@
+{
+  "yaml.schemas": {
+    "https://json.schemastore.org/github-workflow.json": "file:///Users/home/Documents/Projects/github-actions-course/.github/workflows/ci-pipeline.yaml"
+  },
+  "editor.formatOnSave": true,
+  "[javascript][typescript][yaml][json][css][html][markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "gopls": {
+    "ui.semanticTokens": true,
+    "ui.diagnostic.staticcheck": true
+  },
+  "go.lintOnSave": "package",
+  "go.buildTags": "debug",
+  "[go]": {
+    "editor.defaultFormatter": "golang.go",
+    "editor.insertSpaces": false,
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": true
+    },
+    "editor.suggest.snippetsPreventQuickSuggestions": false
+  }
+}
